@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,9 +49,6 @@ func (c Client) Contents(ctx context.Context, body map[string]any) (Response, er
 }
 
 func (c Client) post(ctx context.Context, path string, body map[string]any) (Response, error) {
-	if strings.TrimSpace(c.APIKey) == "" {
-		return Response{}, errors.New("missing Exa API key")
-	}
 	baseURL := strings.TrimRight(c.BaseURL, "/")
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
@@ -75,7 +71,9 @@ func (c Client) post(ctx context.Context, path string, body map[string]any) (Res
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("x-api-key", c.APIKey)
+		if key := strings.TrimSpace(c.APIKey); key != "" {
+			req.Header.Set("x-api-key", key)
+		}
 
 		resp, err := httpClient.Do(req)
 		if err != nil {

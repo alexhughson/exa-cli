@@ -87,6 +87,61 @@ func TestFetchCommandSendsContentsRequest(t *testing.T) {
 	}
 }
 
+func TestSearchCommandUsesFreeTierWithoutAPIKey(t *testing.T) {
+	var sawKey string
+	withHTTPClient(t, &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		sawKey = r.Header.Get("x-api-key")
+		return jsonResponse(http.StatusOK, `{"results":[{"title":"Free Tier","url":"https://example.com"}]}`), nil
+	})})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(
+		[]string{"--api-base", "https://api.test", "search", "machine learning"},
+		strings.NewReader(""),
+		&stdout,
+		&stderr,
+		testLookup(map[string]string{}),
+		"test",
+	)
+	if code != 0 {
+		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
+	}
+	if sawKey != "" {
+		t.Fatalf("api key = %q, want empty", sawKey)
+	}
+	if !strings.Contains(stdout.String(), "Free Tier") {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
+func TestSearchCommandReportsLoginWhenFreeTierFails(t *testing.T) {
+	withHTTPClient(t, &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusUnauthorized, `{"error":"missing api key"}`), nil
+	})})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(
+		[]string{"--api-base", "https://api.test", "search", "machine learning"},
+		strings.NewReader(""),
+		&stdout,
+		&stderr,
+		testLookup(map[string]string{}),
+		"test",
+	)
+	if code != 1 {
+		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "Exa free-tier request failed:") {
+		t.Fatalf("stderr = %s", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "Run `exa-cli login` to configure an API key.") {
+		t.Fatalf("stderr = %s", stderr.String())
+	}
+}
+
 func TestAdvancedSearchCommandSendsFilters(t *testing.T) {
 	var sawBody map[string]any
 	withHTTPClient(t, &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -139,6 +194,25 @@ func TestAuthCommandWritesConfig(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run(
 		[]string{"auth", "exa-key"},
+		strings.NewReader(""),
+		&stdout,
+		&stderr,
+		testLookup(map[string]string{"HOME": home}),
+		"test",
+	)
+	if code != 0 {
+		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), filepath.Join(home, ".exa-cli", "config.json")) {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
+func TestLoginCommandWritesConfig(t *testing.T) {
+	home := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	code := Run(
+		[]string{"login", "exa-key"},
 		strings.NewReader(""),
 		&stdout,
 		&stderr,

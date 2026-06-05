@@ -63,10 +63,20 @@ func TestContentsRetriesRateLimit(t *testing.T) {
 }
 
 func TestMissingAPIKey(t *testing.T) {
-	_, err := Client{}.Search(context.Background(), map[string]any{"query": "hello"})
+	var sawKey string
+	httpClient := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		sawKey = r.Header.Get("x-api-key")
+		return jsonResponse(http.StatusOK, `{"results":[]}`), nil
+	})}
+
+	_, err := Client{BaseURL: "https://api.test", HTTPClient: httpClient}.Search(context.Background(), map[string]any{"query": "hello"})
 	if err == nil {
-		t.Fatal("expected error")
+		if sawKey != "" {
+			t.Fatalf("api key header = %q, want empty", sawKey)
+		}
+		return
 	}
+	t.Fatalf("Search() error = %v", err)
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

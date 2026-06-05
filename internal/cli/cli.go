@@ -64,8 +64,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer, lookup envLoo
 	case "version", "-v", "--version":
 		fmt.Fprintln(stdout, version)
 		return 0
-	case "auth":
+	case "auth", "login":
 		return runAuth(cmdArgs, stdin, stdout, stderr, lookup)
+	case "logout":
+		return runAuth([]string{"logout"}, stdin, stdout, stderr, lookup)
 	case "search", "web-search", "web_search_exa":
 		return runSearch(cmdArgs, stdout, stderr, lookup, global)
 	case "fetch", "web-fetch", "web_fetch_exa":
@@ -328,10 +330,6 @@ func runExa(stdout, stderr io.Writer, lookup envLookup, global globals, call fun
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	if key.Key == "" {
-		fmt.Fprintln(stderr, "missing Exa API key; set EXA_API_KEY or run `exa-cli auth <api-key>`")
-		return 1
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), global.timeout)
 	defer cancel()
 
@@ -342,6 +340,10 @@ func runExa(stdout, stderr io.Writer, lookup envLookup, global globals, call fun
 		RetryDelay: 250 * time.Millisecond,
 	})
 	if err != nil {
+		if key.Key == "" {
+			fmt.Fprintf(stderr, "Exa free-tier request failed: %v\nRun `exa-cli login` to configure an API key.\n", err)
+			return 1
+		}
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
@@ -381,6 +383,9 @@ Usage:
   exa-cli [--json] [--timeout 60s] <command> [flags]
 
 Commands:
+  login [api-key]            Save an Exa API key in ~/.exa-cli/config.json
+  login status               Show credential source
+  logout                     Remove saved credentials
   auth [api-key]             Save an Exa API key in ~/.exa-cli/config.json
   auth status                Show credential source
   auth logout                Remove saved credentials
@@ -390,7 +395,7 @@ Commands:
   version                    Print version
 
 Environment:
-  EXA_API_KEY                Preferred credential source
+  EXA_API_KEY                Preferred credential source; optional for free-tier access
   EXA_CLI_CONFIG             Override config path
   EXA_API_BASE               Override API base URL
 

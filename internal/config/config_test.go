@@ -76,6 +76,19 @@ func TestLogoutRemovesConfig(t *testing.T) {
 	}
 }
 
+func TestLoadAPIKeyWithoutHOMEReturnsEmptySource(t *testing.T) {
+	source, err := LoadAPIKey(testLookup(map[string]string{}))
+	if err != nil {
+		t.Fatalf("LoadAPIKey() error = %v", err)
+	}
+	if source.Key != "" {
+		t.Fatalf("key = %q, want empty", source.Key)
+	}
+	if source.Source != "" {
+		t.Fatalf("source = %q, want empty", source.Source)
+	}
+}
+
 func testLookup(values map[string]string) LookupEnv {
 	return func(key string) (string, bool) {
 		value, ok := values[key]

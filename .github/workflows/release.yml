@@ -1,0 +1,106 @@
+name: Release Artifacts
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            version="dev-${GITHUB_SHA::7}"
+          fi
+
+          mkdir -p dist artifacts
+
+          targets=(
+            "linux amd64 tar.gz"
+            "linux arm64 tar.gz"
+            "darwin amd64 tar.gz"
+            "darwin arm64 tar.gz"
+            "windows amd64 zip"
+          )
+
+          for target in "${targets[@]}"; do
+            read -r goos goarch package_ext <<<"${target}"
+            binary_name="exa-cli"
+            if [[ "${goos}" == "windows" ]]; then
+              binary_name="exa-cli.exe"
+            fi
+
+            output_dir="dist/exa-cli_${version}_${goos}_${goarch}"
+            versioned_asset="artifacts/exa-cli_${version}_${goos}_${goarch}.${package_ext}"
+            latest_asset="artifacts/exa-cli_${goos}_${goarch}.${package_ext}"
+            mkdir -p "${output_dir}"
+
+            CGO_ENABLED=0 GOOS="${goos}" GOARCH="${goarch}" go build \
+              -trimpath \
+              -ldflags "-s -w -X main.version=${version}" \
+              -o "${output_dir}/${binary_name}" \
+              ./cmd/exa-cli
+
+            if [[ "${package_ext}" == "zip" ]]; then
+              (cd dist && zip -qr "../${versioned_asset}" "exa-cli_${version}_${goos}_${goarch}")
+              cp "${versioned_asset}" "${latest_asset}"
+            else
+              tar -C dist -czf "${versioned_asset}" "exa-cli_${version}_${goos}_${goarch}"
+              cp "${versioned_asset}" "${latest_asset}"
+            fi
+          done
+
+          (cd artifacts && sha256sum exa-cli_* > checksums.txt)
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" artifacts/* --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --generate-notes

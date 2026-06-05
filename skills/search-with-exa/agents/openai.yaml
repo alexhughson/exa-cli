@@ -1,0 +1,4 @@
+interface:
+  display_name: "Search with Exa"
+  short_description: "Use the local Exa CLI for web search and webpage fetch tasks"
+  default_prompt: "Use $search-with-exa to run Exa searches or fetch page contents through the local CLI."

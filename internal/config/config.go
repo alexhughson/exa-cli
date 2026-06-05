@@ -14,6 +14,8 @@ const (
 	EnvConfigPath = "EXA_CLI_CONFIG"
 )
 
+var ErrHomeNotSet = errors.New("HOME is not set")
+
 type LookupEnv func(string) (string, bool)
 
 type File struct {
@@ -35,6 +37,9 @@ func LoadAPIKey(lookup LookupEnv) (KeySource, error) {
 
 	path, err := Path(lookup)
 	if err != nil {
+		if errors.Is(err, ErrHomeNotSet) {
+			return KeySource{}, nil
+		}
 		return KeySource{}, err
 	}
 
@@ -105,7 +110,7 @@ func Path(lookup LookupEnv) (string, error) {
 	}
 	home, ok := lookup("HOME")
 	if !ok || strings.TrimSpace(home) == "" {
-		return "", errors.New("HOME is not set")
+		return "", ErrHomeNotSet
 	}
 	return filepath.Join(home, ".exa-cli", "config.json"), nil
 }

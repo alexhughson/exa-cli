@@ -1,36 +1,43 @@
 # exa-cli
 
-A small Go CLI for the primary Exa MCP tools:
+> ⚠️ This tool is largely vibe coded
 
-- `web_search_exa` via `exa-cli search`
-- `web_fetch_exa` via `exa-cli fetch`
-- `web_search_advanced_exa` via `exa-cli advanced-search`
+A small CLI for Exa.ai
 
-## Build
+- Login with `exa-cli login`
+- Search via `exa-cli search`
+- Fetch web content via `exa-cli fetch`
+- Exa advanced search via `exa-cli advanced-search`
+
+This project was built because the Exa MCP server is unweildly to provision/authenticate/manage.  The CLI + Skill combination should be a bit more robust.
+
+## Install
+
+Install the latest release on macOS or Linux:
 
 ```sh
-go build -o dist/exa-cli ./cmd/exa-cli
+curl -fsSL https://raw.githubusercontent.com/alexhughson/exa-cli/main/install.sh | sh
 ```
 
-The result is a single binary.
+## Agent Skill
+
+An agent skill bundle lives at `skills/search-with-exa`.  
 
 ## Authentication
 
-The CLI prefers `EXA_API_KEY`:
+The CLI will try Exa's free tier when no API key is configured. If the unauthenticated request is rejected or the free-tier limit is exhausted, it will tell you to run `exa-cli login`.
+
+### API Key 
+
+The CLI will use an `EXA_API_KEY` environment variable if it sees one:
 
 ```sh
 EXA_API_KEY=your-key exa-cli search "latest AI search APIs"
 ```
 
-You can also save credentials in `~/.exa-cli/config.json`:
+### Saved Auth
 
-```sh
-exa-cli auth your-key
-exa-cli auth status
-exa-cli auth logout
-```
-
-The config directory is created with `0700` permissions and the config file is written with `0600` permissions.
+Running `exa-cli login` will request an API key and persist them in your home directory.
 
 ## Usage
 
@@ -55,5 +62,5 @@ Global flags:
 Environment variables:
 
 - `EXA_API_KEY`
-- `EXA_CLI_CONFIG`
+- `EXA_CLI_CONFIG` - Where the config file with API keys is stored
 - `EXA_API_BASE`
